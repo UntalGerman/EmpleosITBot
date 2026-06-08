@@ -536,7 +536,7 @@ async def main():
 
     client = anthropic.Anthropic(api_key=API_KEY)
 
-    perfil       = seleccionar_perfil()
+    perfil       = seleccionar_perfil(api_key=API_KEY)
     perfil_texto = perfil_a_texto(perfil)
 
     while True:
