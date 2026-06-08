@@ -1,0 +1,5 @@
+anthropic
+python-dotenv
+playwright
+beautifulsoup4
+rich

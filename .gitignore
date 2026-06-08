@@ -1,0 +1,25 @@
+# Variables de entorno — nunca subir al repo
+.env
+
+# Base de datos local
+postulaciones.db
+historial.csv
+
+# Sesiones de Playwright (cookies por portal)
+sessions/
+
+# Perfil personal
+perfil.json
+perfiles/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Scripts legacy
+app_claude.py
+scraper_base.py
+ofertas.json
