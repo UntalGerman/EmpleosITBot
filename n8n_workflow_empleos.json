@@ -1,0 +1,88 @@
+{
+  "name": "Agente de Empleo - Búsqueda Diaria",
+  "nodes": [
+    {
+      "name": "Todos los días 9am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Ejecutar Agente Python",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [220, 0],
+      "parameters": {
+        "command": "cd /d C:\\Users\\USUARIO\\Documents\\Claude\\Projects\\empleos && python main.py --auto --puesto \"programador junior\" --dias 1 --umbral 70"
+      }
+    },
+    {
+      "name": "Parsear JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0],
+      "parameters": {
+        "jsCode": "// El script imprime UNA línea JSON por stdout (los logs van a stderr).\nconst out = JSON.parse($input.first().json.stdout.trim().split('\\n').pop());\nconst sugeridas = (out.ofertas || []).filter(o => o.sugerida);\nreturn [{ json: { ...out, ofertas_sugeridas: sugeridas } }];"
+      }
+    },
+    {
+      "name": "¿Hay sugeridas?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [660, 0],
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.sugeridas }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Enviar WhatsApp",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [880, -80],
+      "disabled": true,
+      "notes": "Configurar credencial 'WhatsApp Business Cloud': necesitás App en developers.facebook.com con producto WhatsApp, el Phone Number ID del número de prueba y tu número verificado como destinatario.",
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "phoneNumberId": "REEMPLAZAR_PHONE_NUMBER_ID",
+        "recipientPhoneNumber": "+549XXXXXXXXXX",
+        "textBody": "={{ '💼 ' + $json.sugeridas + ' oferta(s) con match ≥' + $json.umbral + '%\\n\\n' + $json.ofertas_sugeridas.map(o => '✅ ' + o.match + '% — ' + o.titulo + '\\n🏢 ' + o.empresa + ' (' + o.portal + ')\\n🔗 ' + o.url).join('\\n\\n') }}"
+      }
+    }
+  ],
+  "connections": {
+    "Todos los días 9am": {
+      "main": [[{ "node": "Ejecutar Agente Python", "type": "main", "index": 0 }]]
+    },
+    "Ejecutar Agente Python": {
+      "main": [[{ "node": "Parsear JSON", "type": "main", "index": 0 }]]
+    },
+    "Parsear JSON": {
+      "main": [[{ "node": "¿Hay sugeridas?", "type": "main", "index": 0 }]]
+    },
+    "¿Hay sugeridas?": {
+      "main": [[{ "node": "Enviar WhatsApp", "type": "main", "index": 0 }], []]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

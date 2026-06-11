@@ -6,14 +6,14 @@ cls
 
 echo.
 echo  ============================================================
-echo   AGENTE DE BUSQUEDA DE EMPLEO  v3.0
+echo   AGENTE DE BUSQUEDA DE EMPLEO  v3.3
 echo   Powered by Playwright + Claude Haiku
 echo  ============================================================
 echo.
 echo   Portales  : Computrabajo / EmpleosIT / Indeed / LinkedIn
 echo             : Workana / Bumeran
-echo   Modelo IA : Claude Haiku
-echo   Extras    : SQLite + Alertas Telegram
+echo   Modelo IA : Claude Haiku (triage + analisis profundo)
+echo   Extras    : SQLite + Alertas Telegram + scraping paralelo
 echo.
 echo  ------------------------------------------------------------
 echo.

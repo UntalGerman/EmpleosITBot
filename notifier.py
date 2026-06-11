@@ -17,6 +17,7 @@ Cómo crear el bot (una sola vez):
 """
 
 import os
+import sys
 import urllib.request
 import urllib.parse
 import json
@@ -52,7 +53,8 @@ def _enviar_mensaje(texto: str):
         with urllib.request.urlopen(req, timeout=10) as resp:
             return resp.status == 200
     except Exception as e:
-        print(f"[Telegram] Error al enviar alerta: {e}")
+        # A stderr: en modo --auto, stdout está reservado para el JSON que parsea n8n
+        print(f"[Telegram] Error al enviar alerta: {e}", file=sys.stderr)
         return False
 
 

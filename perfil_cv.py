@@ -73,6 +73,23 @@ def seleccionar_perfil(api_key: str = "") -> dict:
     return _perfil_default()
 
 
+def cargar_perfil_auto(nombre: str | None = None) -> dict:
+    """
+    Carga un perfil SIN interacción — para modo --auto (n8n, tareas programadas).
+    POR QUÉ: un orquestador no puede responder menús; necesita que el perfil
+    se resuelva solo. Si se pasa nombre, busca coincidencia parcial;
+    si no, usa el primer perfil disponible.
+    """
+    perfiles = listar_perfiles()
+    if not perfiles:
+        return _perfil_default()
+    if nombre:
+        for p in perfiles:
+            if nombre.lower() in p["nombre"].lower():
+                return p["datos"]
+    return perfiles[0]["datos"]
+
+
 def _leer_cv_terminal() -> str:
     console.print(Panel.fit(
         "[bold]Pega el texto de tu CV[/bold]\n"
@@ -222,3 +239,4 @@ def _perfil_default() -> dict:
         "experiencia_laboral": [],
         "educacion":           [],
     }
+# v3.4: cargar_perfil_auto para modo no interactivo

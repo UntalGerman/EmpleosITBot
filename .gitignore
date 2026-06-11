@@ -1,9 +1,10 @@
 # Variables de entorno — nunca subir al repo
 .env
 
-# Base de datos local
+# Base de datos local y salidas generadas
 postulaciones.db
 historial.csv
+resultados_auto.json
 
 # Sesiones de Playwright (cookies por portal)
 sessions/

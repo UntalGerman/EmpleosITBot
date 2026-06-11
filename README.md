@@ -1,17 +1,21 @@
 # 🤖 Agente de Búsqueda de Empleo
 
-Agente activo en Python que scraping portales de empleo en tiempo real, analiza cada oferta contra tu perfil con **Claude Haiku (Anthropic)**, y te notifica por **Telegram** cuando encuentra un buen match.
+Agente autónomo en Python que scrapea portales de empleo en tiempo real con **Playwright**, analiza cada oferta contra tu CV con **Claude Haiku (Anthropic)**, y te envía las que matchean directo a **WhatsApp** (vía n8n + Meta Cloud API) o **Telegram** — para que vos solo tengas que postularte.
+
+```
+Cron (n8n, cada 3hs) → Playwright (6 portales) → Claude (match % vs CV) → WhatsApp/Telegram
+```
 
 ---
 
 ## ¿Qué hace?
 
-- Navega automáticamente 6 portales de empleo con **Playwright**
-- Analiza cada oferta contra tu perfil técnico usando IA (Claude Haiku)
-- Te asigna un porcentaje de match y te dice si conviene postularse
-- Envía alertas a tu celular vía **Telegram** con las mejores ofertas
-- Guarda un historial en **SQLite** — solo registra las ofertas que vos elegís abrir
-- Deduplica automáticamente: nunca te muestra la misma oferta dos veces
+- Navega automáticamente 6 portales de empleo con **Playwright** (en paralelo, un context por portal)
+- Analiza cada oferta contra tu perfil técnico con IA en dos fases: triage barato de todas + análisis profundo de las mejores con la descripción real scrapeada
+- Te asigna un porcentaje de match y decide si conviene postularse
+- **Modo autónomo (`--auto`)**: orquestado por **n8n**, corre solo cada 3 horas y te manda cada oferta sugerida como mensaje de WhatsApp con plantilla aprobada
+- Alertas por **Telegram** como canal de respaldo
+- Deduplica con **SQLite**: nunca te muestra la misma oferta dos veces
 
 ---
 
@@ -32,7 +36,8 @@ Agente activo en Python que scraping portales de empleo en tiempo real, analiza 
 
 - Python 3.10+
 - Una API Key de [Anthropic](https://console.anthropic.com/)
-- (Opcional) Un bot de Telegram para recibir alertas
+- (Opcional) Un bot de Telegram para alertas
+- (Opcional, para el modo autónomo) Node.js + [n8n](https://n8n.io) self-hosted y una app de [Meta for Developers](https://developers.facebook.com) con WhatsApp Cloud API
 
 ---
 
@@ -75,33 +80,72 @@ TELEGRAM_CHAT_ID=tu_chat_id
 
 ## Uso
 
-**Windows** — doble click en `Ejecutar.bat`
+### Modo interactivo
 
-**Terminal:**
+**Windows** — doble click en `Ejecutar.bat`, o por terminal:
+
 ```bash
 python main.py
 ```
 
-El agente te va a pedir:
-1. El puesto que buscás (ej: `programador junior`, `react developer`)
-2. En qué portal buscar (o todos)
-3. Ofertas publicadas en los últimos N días
-4. Match mínimo para considerar postularse (ej: `70`)
+El agente te pide puesto, portal, antigüedad de las ofertas y match mínimo. Al final elegís qué ofertas abrir en el navegador — solo esas quedan registradas en tu base de postulaciones.
 
-Al final podés elegir qué números abrir en el navegador — solo esas quedan registradas en tu base de datos de postulaciones.
+### Modo autónomo (`--auto`)
+
+Pensado para orquestadores (n8n, Task Scheduler, cron). Sin menús: corre todos los portales y termina.
+
+```bash
+python main.py --auto --puesto "programador junior" --dias 1 --umbral 70 --perfil "German"
+```
+
+| Flag | Default | Descripción |
+|------|---------|-------------|
+| `--puesto` | `programador junior` | Término de búsqueda |
+| `--dias` | `7` | Antigüedad máxima de las ofertas |
+| `--umbral` | `70` | Match mínimo para sugerir postulación |
+| `--perfil` | primer perfil | Nombre (parcial) del perfil a usar |
+| `--json-out` | `resultados_auto.json` | Archivo de salida JSON |
+
+**Contrato de salida** (diseñado para pipelines): los logs van a *stderr*; *stdout* emite una única línea JSON con los resultados. Exit code `0` = ok, `1` = error de configuración/API.
+
+```json
+{"timestamp": "...", "total_nuevas": 15, "sugeridas": 2, "ofertas": [{"titulo": "...", "match": 75, "sugerida": true, "url": "..."}]}
+```
+
+---
+
+## Automatización con n8n + WhatsApp
+
+El workflow `n8n_workflow_empleos.json` (importable desde n8n → Import from File) implementa:
+
+```
+Schedule Trigger (cron 0 0 9-21/3 * * *  →  9, 12, 15, 18 y 21 hs)
+  → Execute Command (python main.py --auto ...)
+  → Code (parsea el JSON de stdout, emite 1 item por oferta sugerida)
+  → WhatsApp Send Template (1 mensaje por oferta, con match %, empresa, portal y link)
+```
+
+Puntos clave de la configuración:
+
+- **n8n v2 bloquea Execute Command por defecto** — lanzar n8n con `NODES_EXCLUDE="[]"` (ver `iniciar_n8n.bat`, pensado para la carpeta de Inicio de Windows: `Win+R` → `shell:startup`)
+- **WhatsApp Cloud API**: app tipo Business en Meta for Developers, número de prueba gratuito (hasta 5 destinatarios verificados), token permanente generado con un *usuario del sistema* en Business Manager
+- **Plantilla aprobada** (`oferta_empleo`, 5 variables): permite enviar mensajes sin depender de la ventana de servicio de 24 hs
+- El destinatario debe coincidir *exactamente* con el formato de la lista de permitidos de Meta (en AR: sin el `9` del prefijo móvil)
 
 ---
 
 ## Estructura del proyecto
 
 ```
-├── main.py          # Agente principal — scraping, análisis, CLI
-├── db.py            # Persistencia SQLite (urls vistas + postulaciones)
-├── notifier.py      # Alertas por Telegram
-├── perfil_cv.py     # Gestión de perfiles del candidato
+├── main.py                    # Agente principal — scraping, análisis, CLI + modo --auto
+├── db.py                      # Persistencia SQLite (urls vistas + postulaciones)
+├── notifier.py                # Alertas por Telegram
+├── perfil_cv.py               # Gestión de perfiles del candidato (interactivo y auto)
+├── n8n_workflow_empleos.json  # Workflow de n8n listo para importar
+├── Ejecutar.bat               # Lanzador del modo interactivo (Windows)
+├── iniciar_n8n.bat            # Lanzador de n8n con NODES_EXCLUDE (para shell:startup)
 ├── requirements.txt
-├── Ejecutar.bat     # Lanzador para Windows
-└── .env             # Variables de entorno (no subir a Git)
+└── .env                       # Variables de entorno (no subir a Git)
 ```
 
 ---
@@ -117,25 +161,12 @@ Podés abrirla con [DB Browser for SQLite](https://sqlitebrowser.org/) para ver 
 
 ---
 
-## .gitignore recomendado
-
-```
-.env
-postulaciones.db
-historial.csv
-sessions/
-__pycache__/
-*.pyc
-perfiles/
-perfil.json
-```
-
----
-
 ## Stack
 
 - [Playwright](https://playwright.dev/python/) — automatización del navegador
-- [Anthropic Claude Haiku](https://www.anthropic.com/) — análisis de ofertas con IA
+- [Anthropic Claude Haiku](https://www.anthropic.com/) — análisis de ofertas con IA (lotes + prompt caching)
+- [n8n](https://n8n.io) — orquestación self-hosted (cron, parseo, envío)
+- [WhatsApp Business Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api) — notificaciones con plantilla
 - [Rich](https://github.com/Textualize/rich) — interfaz de terminal
 - SQLite — persistencia local sin servidor
-- Telegram Bot API — notificaciones móviles
+- Telegram Bot API — canal de respaldo
